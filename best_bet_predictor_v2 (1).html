@@ -1,0 +1,130 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Best Bet Predictor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #f4f4f4;
+    }
+    .best-bet {
+      background-color: #d4edda;
+      font-weight: bold;
+    }
+    #bestBet {
+      margin-top: 20px;
+      font-size: 1.2em;
+      color: #006400;
+    }
+  </style>
+</head>
+<body>
+  <h1>Best Bet Predictor</h1>
+  <label for="sport">Choose a sport:</label>
+  <select id="sport">
+    <option value="nfl">NFL</option>
+    <option value="ncaaf">NCAAF</option>
+    <option value="mlb">MLB</option>
+  </select>
+  <button onclick="fetchOdds()">Refresh Odds</button>
+  <p id="bestBet">No bets found.</p>
+  <table id="oddsTable">
+    <thead>
+      <tr>
+        <th>Matchup</th>
+        <th>Moneyline</th>
+        <th>Spread</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const apiKey = "CxIngN9rynrwWEBK8uxSZNbWP2csrvpD";
+
+    async function fetchOdds() {
+      const sport = document.getElementById('sport').value;
+      const sportMapping = {
+        nfl: 'americanfootball_nfl',
+        ncaaf: 'americanfootball_ncaaf',
+        mlb: 'baseball_mlb'
+      };
+
+      const sportKey = sportMapping[sport];
+      const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${apiKey}`;
+
+      try {
+        const res = await fetch(url);
+        const games = await res.json();
+        console.log("API Data:", games);
+
+        const tbody = document.querySelector('#oddsTable tbody');
+        tbody.innerHTML = '';
+
+        if (!Array.isArray(games) || games.length === 0) {
+          document.getElementById('bestBet').innerText = "No games found for this sport today.";
+          return;
+        }
+
+        let bestBet = null;
+        let bestValue = -Infinity;
+
+        games.forEach(game => {
+          const bookmaker = game.bookmakers?.[0];
+          if (!bookmaker) return;
+
+          const h2h = bookmaker.markets.find(m => m.key === 'h2h');
+          const spreads = bookmaker.markets.find(m => m.key === 'spreads');
+          const totals = bookmaker.markets.find(m => m.key === 'totals');
+
+          const moneyline = h2h?.outcomes.map(o => `${o.name}: ${o.price}`).join(' / ') || 'N/A';
+          const spread = spreads?.outcomes.map(o => `${o.name}: ${o.point} (${o.price})`).join(' / ') || 'N/A';
+          const total = totals?.outcomes.map(o => `${o.name}: ${o.point} (${o.price})`).join(' / ') || 'N/A';
+
+          const value = h2h?.outcomes.reduce((max, o) => o.price > max ? o.price : max, -Infinity);
+
+          const row = document.createElement('tr');
+          if (value > bestValue) {
+            bestValue = value;
+            bestBet = `${game.home_team} vs ${game.away_team} — Best ML: ${moneyline}`;
+            row.className = 'best-bet';
+          }
+
+          row.innerHTML = `
+            <td>${game.home_team} vs ${game.away_team}</td>
+            <td>${moneyline}</td>
+            <td>${spread}</td>
+            <td>${total}</td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        document.getElementById('bestBet').innerText = bestBet || "No valid odds data found.";
+      } catch (error) {
+        console.error("Error fetching odds:", error);
+        alert("There was a problem fetching the odds. Please try again later.");
+      }
+    }
+  </script>
+</body>
+</html>
